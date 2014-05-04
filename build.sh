@@ -8,7 +8,7 @@ set -o errexit
 #set -o xtrace
 
 # Configurations
-BOX="ubuntu-precise-64"
+BOX="ubuntu-trusty-64"
 ISO_URL="http://releases.ubuntu.com/trusty/ubuntu-14.04-server-amd64.iso"
 ISO_MD5="01545fa976c8367b4f0d59169ac4866c"
 
