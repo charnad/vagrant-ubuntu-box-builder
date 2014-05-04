@@ -56,8 +56,8 @@ fi
 echo "Creating Custom ISO"
 if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
 
-  echo "Untarring downloaded ISO ..."
-  tar -C "${FOLDER_ISO_CUSTOM}" -xf "${ISO_FILENAME}"
+  echo "Using 7zip"
+  7z x "${ISO_FILENAME}" -o"${FOLDER_ISO_CUSTOM}"
 
   # backup initrd.gz
   echo "Backing up current init.rd ..."
@@ -199,7 +199,7 @@ if ! VBoxManage showvminfo "${BOX}" >/dev/null 2>/dev/null; then
 fi
 
 echo "Building Vagrant Box ..."
-vagrant package --base "${BOX}"
+vagrant package --base "${BOX}" --output "${BOX}.box"
 
 # references:
 # http://blog.ericwhite.ca/articles/2009/11/unattended-debian-lenny-install/
