@@ -1,7 +1,20 @@
 #!/bin/bash
 
-# make sure we have dependencies 
-hash mkisofs 2>/dev/null || { echo >&2 "ERROR: mkisofs not found.  Aborting."; exit 1; }
+# make sure we have dependencies
+hash vagrant 2>/dev/null || { echo >&2 "ERROR: vagrant not found.  Aborting."; exit 1; }
+hash VBoxManage 2>/dev/null || { echo >&2 "ERROR: VBoxManage not found.  Aborting."; exit 1; }
+hash 7z 2>/dev/null || { echo >&2 "ERROR: 7z not found. Aborting."; exit 1; }
+
+VBOX_VERSION="$(VBoxManage --version)"
+
+if hash mkisofs 2>/dev/null; then
+  MKISOFS="$(which mkisofs)"
+elif hash genisoimage 2>/dev/null; then
+  MKISOFS="$(which genisoimage)"
+else
+  echo >&2 "ERROR: mkisofs or genisoimage not found.  Aborting."
+  exit 1
+fi
 
 set -o nounset
 set -o errexit
@@ -20,12 +33,54 @@ FOLDER_VBOX="${FOLDER_BUILD}/vbox"
 FOLDER_ISO_CUSTOM="${FOLDER_BUILD}/iso/custom"
 FOLDER_ISO_INITRD="${FOLDER_BUILD}/iso/initrd"
 
+# Env option: Use headless mode or GUI
+VM_GUI="${VM_GUI:-}"
+if [ "x${VM_GUI}" == "xyes" ] || [ "x${VM_GUI}" == "x1" ]; then
+  STARTVM="VBoxManage startvm ${BOX}"
+else
+ STARTVM="VBoxManage startvm ${BOX} --type headless"
+fi
+
+# Env option: Use custom preseed.cfg or default
+DEFAULT_PRESEED="preseed.cfg"
+PRESEED="${PRESEED:-"$DEFAULT_PRESEED"}"
+
+# Env option: Use custom late_command.sh or default
+DEFAULT_LATE_CMD="${FOLDER_BASE}/late_command.sh"
+LATE_CMD="${LATE_CMD:-"$DEFAULT_LATE_CMD"}"
+
+# Parameter changes from 4.2 to 4.3
+if [[ "$VBOX_VERSION" < 4.3 ]]; then
+  PORTCOUNT="--sataportcount 1"
+else
+  PORTCOUNT="--portcount 1"
+fi
+
+if [ "$OSTYPE" = "linux-gnu" ]; then
+  MD5="md5sum"
+elif [ "$OSTYPE" = "msys" ]; then
+  MD5="md5 -l"
+else
+  MD5="md5 -q"
+fi
+
 # start with a clean slate
 if [ -d "${FOLDER_BUILD}" ]; then
   echo "Cleaning build directory ..."
   chmod -R u+w "${FOLDER_BUILD}"
   rm -rf "${FOLDER_BUILD}"
-  mkdir -p "${FOLDER_BUILD}"
+fi
+if [ -f "${FOLDER_ISO}/custom.iso" ]; then
+  echo "Removing custom iso ..."
+  rm "${FOLDER_ISO}/custom.iso"
+fi
+if [ -f "${FOLDER_BASE}/${BOX}.box" ]; then
+  echo "Removing old ${BOX}.box" ...
+  rm "${FOLDER_BASE}/${BOX}.box"
+fi
+if VBoxManage showvminfo "${BOX}" >/dev/null 2>/dev/null; then
+  echo "Unregistering vm ..."
+  VBoxManage unregistervm "${BOX}" --delete
 fi
 
 # Setting things back up again
@@ -37,9 +92,8 @@ mkdir -p "${FOLDER_ISO_INITRD}"
 
 ISO_FILENAME="${FOLDER_ISO}/`basename ${ISO_URL}`"
 INITRD_FILENAME="${FOLDER_ISO}/initrd.gz"
-ISO_GUESTADDITIONS="/Applications/VirtualBox.app/Contents/MacOS/VBoxGuestAdditions.iso"
 
-# download the installation disk if you haven't already or it is corrupted somehow
+# download the configuration disk if you haven't already or it is corrupted somehow
 echo "Downloading `basename ${ISO_URL}` ..."
 if [ ! -e "${ISO_FILENAME}" ]; then
   curl --output "${ISO_FILENAME}" -L "${ISO_URL}"
@@ -59,23 +113,17 @@ if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
   echo "Using 7zip"
   7z x "${ISO_FILENAME}" -o"${FOLDER_ISO_CUSTOM}"
 
-  # backup initrd.gz
-  echo "Backing up current init.rd ..."
-  chmod u+w "${FOLDER_ISO_CUSTOM}/install" "${FOLDER_ISO_CUSTOM}/install/initrd.gz"
-  mv "${FOLDER_ISO_CUSTOM}/install/initrd.gz" "${FOLDER_ISO_CUSTOM}/install/initrd.gz.org"
+  # If that didn't work, you have to update p7zip
+  if [ ! -e $FOLDER_ISO_CUSTOM ]; then
+    echo "Error with extracting the ISO file with your version of p7zip. Try updating to the latest version."
+    exit 1
+  fi
 
-  # stick in our new initrd.gz
-  echo "Installing new initrd.gz ..."
-  cd "${FOLDER_ISO_INITRD}"
-  gunzip -c "${FOLDER_ISO_CUSTOM}/install/initrd.gz.org" | cpio -id
   cd "${FOLDER_BASE}"
-  cp preseed.cfg "${FOLDER_ISO_INITRD}/preseed.cfg"
-  cd "${FOLDER_ISO_INITRD}"
-  find . | cpio --create --format='newc' | gzip  > "${FOLDER_ISO_CUSTOM}/install/initrd.gz"
-
-  # clean up permissions
-  echo "Cleaning up Permissions ..."
-  chmod u-w "${FOLDER_ISO_CUSTOM}/install" "${FOLDER_ISO_CUSTOM}/install/initrd.gz" "${FOLDER_ISO_CUSTOM}/install/initrd.gz.org"
+  if [ "${PRESEED}" != "${DEFAULT_PRESEED}" ] ; then
+    echo "Using custom preseed file ${PRESEED}"
+  fi
+  cp "${PRESEED}" "${FOLDER_ISO_CUSTOM}/preseed/vagrant.seed"
 
   # replace isolinux configuration
   echo "Replacing isolinux config ..."
@@ -88,16 +136,15 @@ if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
   # add late_command script
   echo "Add late_command script ..."
   chmod u+w "${FOLDER_ISO_CUSTOM}"
-  cp "${FOLDER_BASE}/late_command.sh" "${FOLDER_ISO_CUSTOM}"
+  cp "${LATE_CMD}" "${FOLDER_ISO_CUSTOM}/late_command.sh"
   
   echo "Running mkisofs ..."
-  mkisofs -r -V "Custom Ubuntu Install CD" \
+  "$MKISOFS" -r -V "Custom Ubuntu Install CD" \
     -cache-inodes -quiet \
     -J -l -b isolinux/isolinux.bin \
     -c isolinux/boot.cat -no-emul-boot \
     -boot-load-size 4 -boot-info-table \
     -o "${FOLDER_ISO}/custom.iso" "${FOLDER_ISO_CUSTOM}"
-
 fi
 
 echo "Creating VM Box..."
@@ -136,7 +183,7 @@ if ! VBoxManage showvminfo "${BOX}" >/dev/null 2>/dev/null; then
     --name "SATA Controller" \
     --add sata \
     --controller IntelAhci \
-    --sataportcount 1 \
+    $PORTCOUNT \
     --hostiocache off
 
   VBoxManage createhd \
@@ -150,7 +197,7 @@ if ! VBoxManage showvminfo "${BOX}" >/dev/null 2>/dev/null; then
     --type hdd \
     --medium "${FOLDER_VBOX}/${BOX}/${BOX}.vdi"
 
-  VBoxManage startvm "${BOX}"
+  ${STARTVM}
 
   echo -n "Waiting for installer to finish "
   while VBoxManage list runningvms | grep "${BOX}" >/dev/null; do
@@ -159,37 +206,6 @@ if ! VBoxManage showvminfo "${BOX}" >/dev/null 2>/dev/null; then
   done
   echo ""
 
-  # Forward SSH
-  VBoxManage modifyvm "${BOX}" \
-    --natpf1 "guestssh,tcp,,2222,,22"
-
-  # Attach guest additions iso
-  VBoxManage storageattach "${BOX}" \
-    --storagectl "IDE Controller" \
-    --port 1 \
-    --device 0 \
-    --type dvddrive \
-    --medium "${ISO_GUESTADDITIONS}"
-
-  VBoxManage startvm "${BOX}"
-
-  # get private key
-  curl --output "${FOLDER_BUILD}/id_rsa" "https://raw.github.com/mitchellh/vagrant/master/keys/vagrant"
-  chmod 600 "${FOLDER_BUILD}/id_rsa"
-
-  # install virtualbox guest additions
-  ssh -i "${FOLDER_BUILD}/id_rsa" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 2222 vagrant@127.0.0.1 "sudo mount /dev/cdrom /media/cdrom; sudo sh /media/cdrom/VBoxLinuxAdditions.run; sudo umount /media/cdrom; sudo shutdown -h now"
-  echo -n "Waiting for machine to shut off "
-  while VBoxManage list runningvms | grep "${BOX}" >/dev/null; do
-    sleep 20
-    echo -n "."
-  done
-  echo ""
-
-  VBoxManage modifyvm "${BOX}" --natpf1 delete "guestssh"
-
-  # Detach guest additions iso
-  echo "Detach guest additions ..."
   VBoxManage storageattach "${BOX}" \
     --storagectl "IDE Controller" \
     --port 1 \
@@ -200,6 +216,11 @@ fi
 
 echo "Building Vagrant Box ..."
 vagrant package --base "${BOX}" --output "${BOX}.box"
+
+if VBoxManage showvminfo "${BOX}" >/dev/null 2>/dev/null; then
+  echo "Unregistering vm ..."
+  VBoxManage unregistervm "${BOX}" --delete
+fi
 
 # references:
 # http://blog.ericwhite.ca/articles/2009/11/unattended-debian-lenny-install/
