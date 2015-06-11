@@ -22,8 +22,8 @@ set -o errexit
 
 # Configurations
 BOX="ubuntu-trusty-64"
-ISO_URL="http://releases.ubuntu.com/trusty/ubuntu-14.04-server-amd64.iso"
-ISO_MD5="01545fa976c8367b4f0d59169ac4866c"
+ISO_URL="http://releases.ubuntu.com/trusty/ubuntu-14.04.2-server-amd64.iso"
+ISO_MD5="83aabd8dcf1e8f469f3c72fff2375195"
 
 # location, location, location
 FOLDER_BASE=`pwd`
