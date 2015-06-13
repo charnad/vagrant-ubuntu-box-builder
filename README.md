@@ -1,10 +1,12 @@
 ## About
 
-This script will: 
+What this script does is:
 
- 1. download the Ubuntu 14.04 server, 64bit iso
- 2. ... do some magic to turn it into a vagrant box file
- 3. output package.box 
+ 1. Download the Ubuntu server 64bit iso
+ 2. Unpack the iso, stick custom preseed file in
+ 3. Create temporary Virtual Box VM and let Ubuntu install run (preseed file automates the installation)
+ 4. Generate a vagrant box from the VM
+ 5. Clean up the VM
 
 ## Usage
 
@@ -15,8 +17,22 @@ mkisofs, install [homebrew](http://mxcl.github.com/homebrew/), then:
 
     brew install cdrtools
 
+The script also requires 7z:
+
+    brew install p7zip
+
+## Defaults
+
+Preseed file contains installer settings. Defaults are: US locale, US keyboard layout, timezone Europe/Berlin. Feel free to modify the preseed file according to your needs.
+
 ### Viktoras' notes
-Using Ubuntu 14.04 Trusty Tahr
+
+Current version Ubuntu 15.04 Vivid Vervet
+
+ - Removed initrd shenanigans, just preseed is enough
+ - Switched back to wget
+ - VM cleanup after build
+ - Modified preseed from swedish locale to en_US
 
 ### Ben's notes
 
