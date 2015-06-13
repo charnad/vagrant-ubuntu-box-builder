@@ -31,7 +31,6 @@ FOLDER_ISO="${FOLDER_BASE}/iso"
 FOLDER_BUILD="${FOLDER_BASE}/build"
 FOLDER_VBOX="${FOLDER_BUILD}/vbox"
 FOLDER_ISO_CUSTOM="${FOLDER_BUILD}/iso/custom"
-FOLDER_ISO_INITRD="${FOLDER_BUILD}/iso/initrd"
 
 # Env option: Use headless mode or GUI
 VM_GUI="${VM_GUI:-}"
@@ -88,10 +87,8 @@ mkdir -p "${FOLDER_ISO}"
 mkdir -p "${FOLDER_BUILD}"
 mkdir -p "${FOLDER_VBOX}"
 mkdir -p "${FOLDER_ISO_CUSTOM}"
-mkdir -p "${FOLDER_ISO_INITRD}"
 
 ISO_FILENAME="${FOLDER_ISO}/`basename ${ISO_URL}`"
-INITRD_FILENAME="${FOLDER_ISO}/initrd.gz"
 
 # download the installation disk if you haven't already or it is corrupted somehow
 echo "Downloading `basename ${ISO_URL}` ..."
@@ -99,7 +96,7 @@ if [ ! -e "${ISO_FILENAME}" ]; then
   curl --output "${ISO_FILENAME}" -L "${ISO_URL}"
 
   # make sure download is right...
-  ISO_HASH=`${MD5} "${ISO_FILENAME}"`
+  ISO_HASH=`${MD5} "${ISO_FILENAME}" | cut -b-32`
   if [ "${ISO_MD5}" != "${ISO_HASH}" ]; then
     echo "ERROR: MD5 does not match. Got ${ISO_HASH} instead of ${ISO_MD5}. Aborting."
     exit 1
