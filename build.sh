@@ -21,9 +21,9 @@ set -o errexit
 #set -o xtrace
 
 # Configurations
-BOX="ubuntu-trusty-64"
-ISO_URL="http://releases.ubuntu.com/trusty/ubuntu-14.04.2-server-amd64.iso"
-ISO_MD5="83aabd8dcf1e8f469f3c72fff2375195"
+BOX="ubuntu-vivid-64"
+ISO_URL="http://releases.ubuntu.com/vivid/ubuntu-15.04-server-amd64.iso"
+ISO_MD5="487f4a81f22f8597503db3d51a1b502e"
 
 # location, location, location
 FOLDER_BASE=`pwd`
@@ -93,7 +93,7 @@ mkdir -p "${FOLDER_ISO_INITRD}"
 ISO_FILENAME="${FOLDER_ISO}/`basename ${ISO_URL}`"
 INITRD_FILENAME="${FOLDER_ISO}/initrd.gz"
 
-# download the configuration disk if you haven't already or it is corrupted somehow
+# download the installation disk if you haven't already or it is corrupted somehow
 echo "Downloading `basename ${ISO_URL}` ..."
 if [ ! -e "${ISO_FILENAME}" ]; then
   curl --output "${ISO_FILENAME}" -L "${ISO_URL}"
